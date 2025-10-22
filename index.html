@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Éditeur de modèles d’e-mail</title>
+<title>Gestion avancée des modèles d’e-mails</title>
 <style>
 body {
   font-family: Arial, sans-serif;
@@ -25,7 +25,7 @@ h1 { color: #0057a4; }
   font-family: monospace;
 }
 #editor { resize: vertical; }
-input, button {
+input, button, select {
   padding: 10px;
   margin-top: 10px;
   border-radius: 6px;
@@ -43,6 +43,14 @@ button:hover { background: #004080; }
 <body>
 <h1>🧩 Gestion des modèles d’e-mails</h1>
 
+<div>
+  <label for="modelSelect">Sélectionner un modèle :</label>
+  <select id="modelSelect">
+    <option value="">-- Nouveau modèle --</option>
+  </select>
+  <button onclick="supprimerModele()">🗑️ Supprimer le modèle</button>
+</div>
+
 <div id="container">
   <textarea id="editor" placeholder="Écris ton modèle HTML ici..."></textarea>
   <iframe id="preview"></iframe>
@@ -57,7 +65,7 @@ button:hover { background: #004080; }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // 🔹 Config Firebase à remplacer par tes infos
 const firebaseConfig = {
@@ -78,19 +86,75 @@ editor.addEventListener("input", () => {
   preview.close();
 });
 
+// 🔹 Sélection du modèle
+const modelSelect = document.getElementById("modelSelect");
+let currentModel = "";
+
+async function chargerModeles() {
+  modelSelect.innerHTML = '<option value="">-- Nouveau modèle --</option>';
+  const snapshot = await getDocs(collection(db, "email_templates"));
+  snapshot.forEach(docSnap => {
+    const name = docSnap.id;
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    modelSelect.appendChild(option);
+  });
+}
+chargerModeles();
+
+modelSelect.addEventListener("change", async () => {
+  const name = modelSelect.value;
+  currentModel = name;
+  if (!name) {
+    editor.value = "";
+    document.getElementById("templateName").value = "";
+    document.getElementById("subject").value = "";
+    preview.open();
+    preview.write("");
+    preview.close();
+    return;
+  }
+  const docSnap = await getDoc(doc(db, "email_templates", name));
+  if (!docSnap.exists()) return alert("Modèle introuvable !");
+  const data = docSnap.data();
+  editor.value = data.html;
+  document.getElementById("templateName").value = name;
+  document.getElementById("subject").value = data.subject;
+  preview.open();
+  preview.write(editor.value);
+  preview.close();
+});
+
 // 🔹 Enregistrer un modèle dans Firestore
 async function enregistrerModele() {
   const name = document.getElementById("templateName").value.trim();
   const subject = document.getElementById("subject").value.trim();
   if (!name || !subject || !editor.value.trim()) {
-    alert("Remplis tous les champs !");
-    return;
+    return alert("Remplis tous les champs !");
   }
   await setDoc(doc(db, "email_templates", name), {
     html: editor.value,
     subject: subject
   });
   alert("Modèle enregistré !");
+  chargerModeles();
+}
+
+// 🔹 Supprimer un modèle
+async function supprimerModele() {
+  const name = modelSelect.value;
+  if (!name) return alert("Sélectionne un modèle à supprimer !");
+  if (!confirm(`Supprimer le modèle "${name}" ?`)) return;
+  await deleteDoc(doc(db, "email_templates", name));
+  alert("Modèle supprimé !");
+  chargerModeles();
+  editor.value = "";
+  document.getElementById("templateName").value = "";
+  document.getElementById("subject").value = "";
+  preview.open();
+  preview.write("");
+  preview.close();
 }
 
 // 🔹 Envoyer un test via ton API Render
@@ -103,10 +167,8 @@ async function envoyerTest() {
   // Récupérer le template depuis Firestore
   const docSnap = await getDoc(doc(db, "email_templates", templateName));
   if (!docSnap.exists()) return alert("Modèle introuvable !");
-  const data = docSnap.data();
-  const html = data.html;
   
-  // Variables de test à remplacer
+  // Variables de test (modifiable selon tes besoins)
   const variables = {
     patient_nom: "Dupont",
     patient_prenom: "Marie",
