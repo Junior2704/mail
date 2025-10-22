@@ -58,13 +58,14 @@ button:hover { background: #004080; }
 <input type="text" id="subject" placeholder="Sujet de l’e-mail">
 <textarea id="variablesInput" placeholder='Variables JSON, ex: {"patient_nom":"Dupont","lien":"https://lien.com"}'></textarea>
 <br>
-<button onclick="enregistrerModele()">💾 Enregistrer</button>
-<button onclick="envoyerTest()">✉️ Envoyer un test</button>
+<button id="enregistrerBtn">💾 Enregistrer</button>
+<button id="envoyerTest">✉️ Envoyer un test</button>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-
+document.querySelector("enregistrerBtn").addEventListener("click", enregistrerModele);
+document.querySelector("envoyerTest").addEventListener("click", envoyerTest);
 // 🔹 Config Firebase à remplacer par tes infos
 const firebaseConfig = {
   apiKey: "AIzaSyBr-Hdamt8yVSppKBf7jYkA750j317YbpU",
