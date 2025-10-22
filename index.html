@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Éditeur de modèles d’e-mail</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f9;
+  margin: 0;
+  padding: 20px;
+}
+h1 { color: #0057a4; }
+#container {
+  display: flex;
+  gap: 4%;
+}
+#editor, #preview {
+  width: 48%;
+  height: 500px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  font-family: monospace;
+}
+#editor { resize: vertical; }
+input, button {
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+button {
+  background: #0057a4;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+button:hover { background: #004080; }
+</style>
+</head>
+<body>
+<h1>🧩 Gestion des modèles d’e-mails</h1>
+
+<div id="container">
+  <textarea id="editor" placeholder="Écris ton modèle HTML ici..."></textarea>
+  <iframe id="preview"></iframe>
+</div>
+
+<br>
+<input type="text" id="templateName" placeholder="Nom du modèle (ex: compte_rendu)">
+<input type="text" id="subject" placeholder="Sujet de l’e-mail">
+<br>
+<button onclick="enregistrerModele()">💾 Enregistrer</button>
+<button onclick="envoyerTest()">✉️ Envoyer un test</button>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+// 🔹 Config Firebase à remplacer par tes infos
+const firebaseConfig = {
+  apiKey: "TA_CLE",
+  authDomain: "TON_PROJET.firebaseapp.com",
+  projectId: "TON_PROJET",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 🔹 Prévisualisation en direct
+const editor = document.getElementById("editor");
+const preview = document.getElementById("preview").contentDocument;
+
+editor.addEventListener("input", () => {
+  preview.open();
+  preview.write(editor.value);
+  preview.close();
+});
+
+// 🔹 Enregistrer un modèle dans Firestore
+async function enregistrerModele() {
+  const name = document.getElementById("templateName").value.trim();
+  const subject = document.getElementById("subject").value.trim();
+  if (!name || !subject || !editor.value.trim()) {
+    alert("Remplis tous les champs !");
+    return;
+  }
+  await setDoc(doc(db, "email_templates", name), {
+    html: editor.value,
+    subject: subject
+  });
+  alert("Modèle enregistré !");
+}
+
+// 🔹 Envoyer un test via ton API Render
+async function envoyerTest() {
+  const templateName = document.getElementById("templateName").value.trim();
+  const subject = document.getElementById("subject").value.trim();
+  const to = prompt("Adresse e-mail de test ?");
+  if (!templateName || !to) return alert("Nom du modèle et e-mail obligatoires !");
+  
+  // Récupérer le template depuis Firestore
+  const docSnap = await getDoc(doc(db, "email_templates", templateName));
+  if (!docSnap.exists()) return alert("Modèle introuvable !");
+  const data = docSnap.data();
+  const html = data.html;
+  
+  // Variables de test à remplacer
+  const variables = {
+    patient_nom: "Dupont",
+    patient_prenom: "Marie",
+    lien_compte_rendu: "https://mon-lien.com/doc123"
+  };
+  
+  try {
+    const res = await fetch("https://mail-api.onrender.com/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: "MA_SUPER_CLE_SECRETE",
+        template: templateName,
+        to: to,
+        variables: variables
+      })
+    });
+    const result = await res.json();
+    alert(JSON.stringify(result));
+  } catch (err) {
+    alert("Erreur : " + err.message);
+  }
+}
+</script>
+</body>
+</html>
