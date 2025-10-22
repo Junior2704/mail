@@ -8,12 +8,10 @@ from google.cloud import firestore
 
 app = FastAPI()
 
-# Sécurité
-API_KEY = "MA_SUPER_CLE_SECRETE"
+GMAIL_USER = os.environ.get("GMAIL_USER")
+GMAIL_PASS = os.environ.get("GMAIL_PASS")
+API_KEY = os.environ.get("API_KEY")
 
-# Paramètres du compte expéditeur
-expediteur = "ton_adresse@gmail.com"
-mot_de_passe = "mot_de_passe_application"
 
 # Connexion Firestore
 db = firestore.Client.from_service_account_json("firebase-key.json")
