@@ -64,11 +64,12 @@ button:hover { background: #004080; }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-  document.addEventListener("DOMContentLoaded", () => {
-document.querySelector("enregistrerBtn").addEventListener("click", enregistrerModele);
-document.querySelector("envoyerTest").addEventListener("click", envoyerTest);
-
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("enregistrerBtn").addEventListener("click", enregistrerModele);
+    document.getElementById("envoyerTestBtn").addEventListener("click", envoyerTest);
+    document.getElementById("supprimerBtn").addEventListener("click", supprimerModele);
 });
+
 
 // 🔹 Config Firebase à remplacer par tes infos
 const firebaseConfig = {
