@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Gestion avancée des modèles d’e-mails</title>
+<title>Éditeur avancé de modèles d’e-mails</title>
 <style>
 body {
   font-family: Arial, sans-serif;
@@ -11,10 +11,7 @@ body {
   padding: 20px;
 }
 h1 { color: #0057a4; }
-#container {
-  display: flex;
-  gap: 4%;
-}
+#container { display: flex; gap: 4%; }
 #editor, #preview {
   width: 48%;
   height: 500px;
@@ -25,7 +22,7 @@ h1 { color: #0057a4; }
   font-family: monospace;
 }
 #editor { resize: vertical; }
-input, button, select {
+input, button, select, textarea {
   padding: 10px;
   margin-top: 10px;
   border-radius: 6px;
@@ -41,7 +38,7 @@ button:hover { background: #004080; }
 </style>
 </head>
 <body>
-<h1>🧩 Gestion des modèles d’e-mails</h1>
+<h1>🧩 Gestion des modèles d’e-mails avec variables</h1>
 
 <div>
   <label for="modelSelect">Sélectionner un modèle :</label>
@@ -59,6 +56,7 @@ button:hover { background: #004080; }
 <br>
 <input type="text" id="templateName" placeholder="Nom du modèle (ex: compte_rendu)">
 <input type="text" id="subject" placeholder="Sujet de l’e-mail">
+<textarea id="variablesInput" placeholder='Variables JSON, ex: {"patient_nom":"Dupont","lien":"https://lien.com"}'></textarea>
 <br>
 <button onclick="enregistrerModele()">💾 Enregistrer</button>
 <button onclick="envoyerTest()">✉️ Envoyer un test</button>
@@ -76,17 +74,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔹 Prévisualisation en direct
+// 🔹 Prévisualisation
 const editor = document.getElementById("editor");
 const preview = document.getElementById("preview").contentDocument;
-
 editor.addEventListener("input", () => {
   preview.open();
   preview.write(editor.value);
   preview.close();
 });
 
-// 🔹 Sélection du modèle
+// 🔹 Modèles
 const modelSelect = document.getElementById("modelSelect");
 let currentModel = "";
 
@@ -110,6 +107,7 @@ modelSelect.addEventListener("change", async () => {
     editor.value = "";
     document.getElementById("templateName").value = "";
     document.getElementById("subject").value = "";
+    document.getElementById("variablesInput").value = "";
     preview.open();
     preview.write("");
     preview.close();
@@ -121,27 +119,30 @@ modelSelect.addEventListener("change", async () => {
   editor.value = data.html;
   document.getElementById("templateName").value = name;
   document.getElementById("subject").value = data.subject;
+  document.getElementById("variablesInput").value = JSON.stringify(data.defaultVariables || {}, null, 2);
   preview.open();
   preview.write(editor.value);
   preview.close();
 });
 
-// 🔹 Enregistrer un modèle dans Firestore
+// 🔹 Enregistrer modèle
 async function enregistrerModele() {
   const name = document.getElementById("templateName").value.trim();
   const subject = document.getElementById("subject").value.trim();
-  if (!name || !subject || !editor.value.trim()) {
-    return alert("Remplis tous les champs !");
-  }
+  const variablesText = document.getElementById("variablesInput").value.trim();
+  if (!name || !subject || !editor.value.trim()) return alert("Remplis tous les champs !");
+  let defaultVariables = {};
+  try { defaultVariables = variablesText ? JSON.parse(variablesText) : {}; } catch(e) { return alert("Variables JSON invalides !"); }
   await setDoc(doc(db, "email_templates", name), {
     html: editor.value,
-    subject: subject
+    subject: subject,
+    defaultVariables: defaultVariables
   });
   alert("Modèle enregistré !");
   chargerModeles();
 }
 
-// 🔹 Supprimer un modèle
+// 🔹 Supprimer modèle
 async function supprimerModele() {
   const name = modelSelect.value;
   if (!name) return alert("Sélectionne un modèle à supprimer !");
@@ -152,29 +153,31 @@ async function supprimerModele() {
   editor.value = "";
   document.getElementById("templateName").value = "";
   document.getElementById("subject").value = "";
+  document.getElementById("variablesInput").value = "";
   preview.open();
   preview.write("");
   preview.close();
 }
 
-// 🔹 Envoyer un test via ton API Render
+// 🔹 Remplacer les variables dans le HTML
+function remplacerVariables(html, variables) {
+  return html.replace(/\{\{(.*?)\}\}/g, (_, key) => variables[key.trim()] || '');
+}
+
+// 🔹 Envoyer un test
 async function envoyerTest() {
   const templateName = document.getElementById("templateName").value.trim();
-  const subject = document.getElementById("subject").value.trim();
   const to = prompt("Adresse e-mail de test ?");
   if (!templateName || !to) return alert("Nom du modèle et e-mail obligatoires !");
   
-  // Récupérer le template depuis Firestore
   const docSnap = await getDoc(doc(db, "email_templates", templateName));
   if (!docSnap.exists()) return alert("Modèle introuvable !");
-  
-  // Variables de test (modifiable selon tes besoins)
-  const variables = {
-    patient_nom: "Dupont",
-    patient_prenom: "Marie",
-    lien_compte_rendu: "https://mon-lien.com/doc123"
-  };
-  
+  const data = docSnap.data();
+
+  // Variables spécifiques pour cet envoi
+  let variables = {};
+  try { variables = document.getElementById("variablesInput").value ? JSON.parse(document.getElementById("variablesInput").value) : {}; } catch(e) { return alert("Variables JSON invalides !"); }
+
   try {
     const res = await fetch("https://mail-api.onrender.com/send-email", {
       method: "POST",
