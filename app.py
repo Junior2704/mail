@@ -1,58 +1,77 @@
+from fastapi import FastAPI, HTTPException, Request
 import os
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from google.cloud import firestore
+import aiosmtplib
 
 app = FastAPI()
 
-GMAIL_USER = os.environ.get("GMAIL_USER")
-GMAIL_PASS = os.environ.get("GMAIL_PASS")
-API_KEY = os.environ.get("API_KEY")
+# Récupération des variables d'environnement
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASS = os.environ.get("SMTP_PASS")
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 
+# Vérification minimale
+if not SMTP_USER or not SMTP_PASS:
+    raise RuntimeError("Veuillez définir SMTP_USER et SMTP_PASS dans les variables d'environnement.")
 
-# Connexion Firestore
-db = firestore.Client.from_service_account_json("firebase-key.json")
-
-# Schéma de données pour la requête POST
-class EmailRequest(BaseModel):
-    key: str
-    template: str
-    to: str
-    variables: dict
+# Modèles de mail (clé = nom du template)
+templates = {
+    "CR": """
+        <html>
+        <body style="font-family: Arial, sans-serif; color:#333;">
+            <p>Bonjour {{patient_prenom}} {{patient_nom}},</p>
+            <p>Votre compte-rendu d’hospitalisation est disponible :</p>
+            <p><a href="{{lien_compte_rendu}}">{{lien_compte_rendu}}</a></p>
+            <p>⚠️ Ce document est valable 7 jours.</p>
+        </body>
+        </html>
+    """
+}
 
 @app.post("/send-email")
-async def send_email(data: EmailRequest):
-    # Vérifier la clé
-    if data.key != API_KEY:
-        return JSONResponse(content={"error": "Clé API invalide"}, status_code=401)
-    
-    # Récupérer le modèle dans Firestore
-    doc = db.collection("email_templates").document(data.template).get()
-    if not doc.exists:
-        return {"status": "error", "message": "Modèle introuvable"}
-    
-    html = doc.to_dict().get("html", "")
-    subject = doc.to_dict().get("subject", "Message automatique")
-
-    # Remplacer les {{variables}}
-    for key, value in data.variables.items():
-        html = html.replace(f"{{{{{key}}}}}", str(value))
-
-    msg = MIMEMultipart("alternative")
-    msg["From"] = expediteur
-    msg["To"] = data.to
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html, "html"))
-
+async def send_email(request: Request):
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as serveur:
-            serveur.starttls()
-            serveur.login(expediteur, mot_de_passe)
-            serveur.send_message(msg)
-        return {"status": "success", "sent_to": data.to}
+        data = await request.json()
+        key = data.get("key")
+        template_name = data.get("template")
+        to_email = data.get("to")
+        variables = data.get("variables", {})
+
+        # Vérification de la clé d'API interne
+        if key != "10876":
+            raise HTTPException(status_code=401, detail="Clé API invalide")
+
+        # Vérification du template
+        html_template = templates.get(template_name)
+        if not html_template:
+            raise HTTPException(status_code=400, detail="Template non trouvé")
+
+        # Remplacement des variables
+        for k, v in variables.items():
+            html_template = html_template.replace(f"{{{{{k}}}}}", v)
+
+        # Préparer le mail
+        message = MIMEMultipart("alternative")
+        message["From"] = SMTP_USER
+        message["To"] = to_email
+        message["Subject"] = "Votre compte-rendu d’hospitalisation"
+
+        part = MIMEText(html_template, "html")
+        message.attach(part)
+
+        # Envoi via SMTP avec TLS
+        await aiosmtplib.send(
+            message,
+            hostname=SMTP_HOST,
+            port=SMTP_PORT,
+            start_tls=True,
+            username=SMTP_USER,
+            password=SMTP_PASS
+        )
+
+        return {"status": "success", "message": "Email envoyé avec succès !"}
+
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
