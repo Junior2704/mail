@@ -8,14 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Autoriser toutes les origines (pour test)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ou liste des domaines autorisés
+    allow_origins=["*"],  # pour autoriser toutes les origines (test local)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Récupération des variables d'environnement
 SMTP_USER = os.environ.get("SMTP_USER")
