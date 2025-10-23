@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Email API</title>
+</head>
+<body>
+  <h1>Test Envoi Email</h1>
+  <button id="testBtn">Envoyer mail</button>
+
+  <script>
+document.getElementById("testBtn").addEventListener("click", async () => {
+  try {
+    console.log("📨 Début de l'envoi du mail...");
+
+    // Appel à l'API
+    const res = await fetch("https://mail-km8qshonl-louis-projects-44a0ae73.vercel.app/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: "10876",
+        template: "CR",
+        to: "louisdabadie9@gmail.com",
+        variables: {
+          patient_nom: "Dupont",
+          patient_prenom: "Jean",
+          lien_compte_rendu: "https://exemple.com/monpdf"
+        }
+      })
+    });
+
+    console.log("⏳ Requête envoyée, attente de la réponse...");
+
+    // Lecture de la réponse
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("❌ Erreur HTTP :", res.status, text);
+      return;
+    }
+
+    const data = await res.json();
+    console.log("✅ Réponse reçue :", data);
+
+    alert("✅ Mail envoyé ! Vérifie ta boîte de réception.");
+
+  } catch (err) {
+    console.error("❌ Erreur lors de l'envoi du mail :", err);
+  }
+});
+
+  </script>
+</body>
+</html>
